@@ -1,0 +1,272 @@
+---
+title: "Maze Generation"
+description: "How A-Maze-ing generates perfect and imperfect mazes using DFS with backtracking."
+---
+
+A-Maze-ing generates mazes using **depth-first search (DFS) with backtracking** for perfect mazes, with an optional wall-destruction pass to produce imperfect mazes. The result is a 2D grid of integers where each value encodes which walls are open or closed as a bitmask.
+
+## Grid bitmask encoding
+
+Every cell in the maze grid is an integer from 0 to 15. Each bit represents one wall:
+
+| Bit | Value | Direction |
+|-----|-------|-----------|
+| 0   | 1     | North     |
+| 1   | 2     | East      |
+| 2   | 4     | South     |
+| 3   | 8     | West      |
+
+A wall is **closed** when its bit is set. A wall is **open** (passage exists) when its bit is cleared.
+
+```text
+cell = 15  (0b1111) → all four walls closed
+cell = 0   (0b0000) → no walls, fully open
+cell = 6   (0b0110) → East + South walls closed, North + West open
+cell = 9   (0b1001) → North + West walls closed, East + South open
+```
+
+<Note>
+Opening a wall is always symmetric: when you clear the North wall of cell (x, y), you must also clear the South wall of cell (x, y-1). The generator handles this automatically.
+</Note>
+
+## Perfect maze generation (DFS)
+
+A **perfect maze** has exactly one path between any two cells — no loops, no isolated regions. `MazeGenerator` produces perfect mazes using iterative DFS with an explicit stack.
+
+### How the algorithm works
+
+<Steps>
+  <Step title="Initialize">
+    All cells start with all four walls closed (value 15). A random interior cell is chosen as the starting point and pushed onto the stack. It is marked as visited.
+  </Step>
+  <Step title="Explore neighbors">
+    The algorithm looks at the top-of-stack cell and collects all adjacent cells that have **not** yet been visited.
+  </Step>
+  <Step title="Carve a passage">
+    One unvisited neighbor is chosen at random. The wall between the current cell and that neighbor is removed in both directions (current cell's wall bit cleared, neighbor's opposite wall bit cleared). The neighbor is marked visited and pushed onto the stack.
+  </Step>
+  <Step title="Backtrack">
+    If there are no unvisited neighbors, the current cell is popped from the stack. The algorithm returns to the previous cell and tries again.
+  </Step>
+  <Step title="Termination">
+    The loop ends when the stack is empty. Every cell has been visited exactly once, and the result is a spanning tree — a perfect maze.
+  </Step>
+</Steps>
+
+### Stack walkthrough example
+
+Consider a small 3×3 grid. All cells start at value 15.
+
+```text
+Stack: [(1,1)]          visited: {(1,1)}
+  → pick neighbor (2,1), carve East wall of (1,1) and West wall of (2,1)
+Stack: [(1,1), (2,1)]   visited: {(1,1), (2,1)}
+  → pick neighbor (2,2), carve South wall of (2,1) and North wall of (2,2)
+Stack: [(1,1), (2,1), (2,2)]
+  → (2,2) has no unvisited neighbors → pop
+Stack: [(1,1), (2,1)]
+  → pick remaining neighbor (1,0), carve North wall of (2,1) ...
+... continues until stack is empty
+```
+
+This DFS traversal guarantees every cell is reachable and there are no cycles.
+
+### Reproducibility with SEED
+
+Pass a non-zero integer to the `seed` parameter to get a reproducible maze. A seed of `0` (the default) uses a random seed each run.
+
+```python
+from mazegen.generator import MazeGenerator
+
+# Reproducible maze — same output every time
+maze = MazeGenerator(
+    width=20,
+    height=15,
+    entry=(0, 7),
+    exit=(19, 7),
+    seed=42,
+    perfect=True,
+)
+grid = maze.generate()
+```
+
+<Tip>
+Set `seed` to a fixed value during development so that your maze layout stays the same while you work on visualization or solving logic.
+</Tip>
+
+## Perfect vs imperfect mazes
+
+<Tabs>
+  <Tab title="Perfect maze">
+    A perfect maze has a unique solution path. No loops exist between any two cells.
+
+    ```python
+    maze = MazeGenerator(
+        width=20,
+        height=15,
+        entry=(0, 7),
+        exit=(19, 7),
+        perfect=True,   # default
+    )
+    grid = maze.generate()
+    ```
+
+    - Guaranteed single solution
+    - No redundant passages
+    - Always solvable via BFS or DFS
+  </Tab>
+  <Tab title="Imperfect maze">
+    An imperfect maze adds extra passages by destroying walls after DFS, creating loops and multiple possible routes.
+
+    ```python
+    maze = MazeGenerator(
+        width=20,
+        height=15,
+        entry=(0, 7),
+        exit=(19, 7),
+        perfect=False,
+    )
+    grid = maze.generate()
+    ```
+
+    - Multiple paths may exist between cells
+    - BFS still finds the shortest path
+    - Harder for human solvers
+  </Tab>
+</Tabs>
+
+### Imperfect mode: wall destruction
+
+When `perfect=False`, the generator first runs the complete DFS algorithm to produce a perfect maze, then performs a wall-destruction pass:
+
+1. Compute the number of walls to destroy: `amount_walls = (width * height) // 75`
+2. Randomly select interior cells
+3. For each selected cell, pick a wall at random and remove it (and the matching wall on the neighboring cell)
+4. **Skip** any cell in the 42-pattern protected set
+5. **Skip** any cell that would be left with 1 or fewer walls (to prevent fully open cells)
+
+<Warning>
+Very small mazes (e.g., 5×5) may see zero or one wall destroyed because `(5*5)//75 = 0`. The effect of imperfect mode becomes noticeable at larger dimensions.
+</Warning>
+
+## The 42 pattern
+
+When the maze is large enough, the generator stamps the digits **"42"** into the center of the grid as a protected region.
+
+### When it applies
+
+The 42 pattern is embedded only when:
+- `width >= 9`
+- `height >= 7`
+
+### How it works
+
+The pattern is placed at the grid center:
+
+```python
+center_x = width // 2
+center_y = height // 2
+# offset_x = center_x - (3 if odd else 4)
+# offset_y = center_y - 2
+```
+
+The cells that form the "42" shape are added to an internal `__protected` set. DFS treats them as **pre-visited**, so it never carves passages through them. This leaves a solid visual "42" stamp in the rendered maze.
+
+<Note>
+Entry and exit coordinates cannot overlap with protected cells. If you place entry/exit near the center of a large maze, the generator may shift them to avoid conflicts.
+</Note>
+
+## MazeGenerator API reference
+
+### Constructor parameters
+
+| Parameter         | Type    | Default            | Description                                              |
+|-------------------|---------|--------------------|----------------------------------------------------------|
+| `width`           | int     | required           | Maze width in cells                                      |
+| `height`          | int     | required           | Maze height in cells                                     |
+| `entry`           | tuple   | required           | Entrance coordinates `(x, y)`                           |
+| `exit`            | tuple   | required           | Exit coordinates `(x, y)`                               |
+| `seed`            | int     | `0`                | RNG seed; `0` = random                                  |
+| `perfect`         | bool    | `True`             | `True` for perfect, `False` for imperfect               |
+| `output_file`     | str     | `output_maze.txt`  | Name of the output file                                 |
+| `speed_animation` | float   | `0`                | Animation frame delay in seconds                        |
+
+### Key methods
+
+```python
+# Generate and return the 2D grid
+grid: list[list[int]] = maze.generate()
+
+# Iterate through generation steps (for animation)
+for grid, stack in maze.perfect_algo():
+    pass  # each yield is one DFS step
+
+# Iterate through imperfect generation steps
+for grid, stack in maze.non_perfect_algo():
+    pass
+```
+
+## Code examples
+
+<CodeGroup>
+
+```python Basic perfect maze
+from mazegen.generator import MazeGenerator
+
+maze = MazeGenerator(
+    width=25,
+    height=20,
+    entry=(0, 10),
+    exit=(24, 10),
+    seed=1337,
+    perfect=True,
+)
+
+grid = maze.generate()
+print(f"Grid dimensions: {len(grid)}x{len(grid[0])}")
+print(f"Top-left cell bitmask: {grid[0][0]}")
+```
+
+```python Imperfect maze
+from mazegen.generator import MazeGenerator
+
+maze = MazeGenerator(
+    width=30,
+    height=20,
+    entry=(0, 0),
+    exit=(29, 19),
+    perfect=False,
+    seed=99,
+)
+
+grid = maze.generate()
+# Number of walls destroyed ≈ (30*20)//75 = 8
+```
+
+```python Step-by-step generation
+from mazegen.generator import MazeGenerator
+
+maze = MazeGenerator(
+    width=15,
+    height=10,
+    entry=(0, 5),
+    exit=(14, 5),
+)
+
+step_count = 0
+for grid_state, stack in maze.perfect_algo():
+    step_count += 1
+
+print(f"DFS completed in {step_count} steps")
+```
+
+</CodeGroup>
+
+<Columns cols={2}>
+  <Card title="Solving mazes" icon="route" href="/guides/solving">
+    Learn how BFS finds the shortest path through a generated maze.
+  </Card>
+  <Card title="Visualization" icon="monitor" href="/guides/visualization">
+    Render mazes in the terminal with ANSI colors and animations.
+  </Card>
+</Columns>

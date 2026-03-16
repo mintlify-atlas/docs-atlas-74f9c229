@@ -1,0 +1,232 @@
+---
+title: "Configuration"
+description: "Configure maze dimensions, entry/exit points, and animation settings via a KEY=VALUE file."
+---
+
+## File format
+
+A-Maze-ing reads a plain-text configuration file where each non-empty line is a `KEY=VALUE` pair.
+
+```text config.txt
+# Maze dimensions
+WIDTH=15
+HEIGHT=11
+
+# Entry and exit coordinates (x,y)
+ENTRY=(0,0)
+EXIT=(14,10)
+
+# Output
+OUTPUT_FILE=maze_output.txt
+
+# Maze type
+PERFECT=True
+
+# Optional
+SEED=0
+SPEED_ANIMATION=0
+```
+
+- Lines beginning with `#` are comments and are ignored.
+- Empty lines are ignored.
+- Key names are case-sensitive and must be uppercase.
+- Values must not be quoted.
+
+## Mandatory fields
+
+All six fields below must be present. If any are missing or invalid, the program prints a `MazeError` and exits before generating anything.
+
+<ParamField path="WIDTH" type="int" required>
+  Width of the maze in cells. Must be greater than 1.
+
+  ```text
+  WIDTH=15
+  ```
+</ParamField>
+
+<ParamField path="HEIGHT" type="int" required>
+  Height of the maze in cells. Must be greater than 1.
+
+  ```text
+  HEIGHT=11
+  ```
+</ParamField>
+
+<ParamField path="ENTRY" type="tuple" required>
+  Entry point expressed as `(x,y)`. Must be within the grid bounds `(0,0)` to `(WIDTH-1, HEIGHT-1)` and must not equal `EXIT`.
+
+  ```text
+  ENTRY=(0,0)
+  ```
+</ParamField>
+
+<ParamField path="EXIT" type="tuple" required>
+  Exit point expressed as `(x,y)`. Must be within the grid bounds `(0,0)` to `(WIDTH-1, HEIGHT-1)` and must not equal `ENTRY`.
+
+  ```text
+  EXIT=(14,10)
+  ```
+</ParamField>
+
+<ParamField path="OUTPUT_FILE" type="file" required>
+  Path to the output `.txt` file where the rendered maze is written after each generation. Must have a `.txt` extension.
+
+  ```text
+  OUTPUT_FILE=maze_output.txt
+  ```
+</ParamField>
+
+<ParamField path="PERFECT" type="bool" required>
+  Controls the maze type. Must be exactly `True` or `False` (case-sensitive).
+
+  - `True` — perfect maze: exactly one path between any two cells (no loops).
+  - `False` — imperfect maze: additional passages are opened, creating loops.
+
+  ```text
+  PERFECT=True
+  ```
+</ParamField>
+
+## Optional fields
+
+These fields are not required. When omitted, default behavior applies.
+
+<ParamField path="SEED" type="int" default="0">
+  Random seed for reproducible maze generation.
+
+  - `0` — use a random seed (different maze each run).
+  - Any other integer — deterministic generation; the same seed always produces the same maze.
+
+  ```text
+  SEED=42
+  ```
+</ParamField>
+
+<ParamField path="SPEED_ANIMATION" type="float" default="0">
+  Delay in seconds between each animation frame during generation and solving.
+
+  - `0` — no animation; maze appears instantly.
+  - `0.01` to `1.0` — animated rendering at the given frame delay.
+
+  Values outside the `0.01`–`1.0` range (other than exactly `0`) are invalid and will produce a validation error.
+
+  ```text
+  SPEED_ANIMATION=0.05
+  ```
+</ParamField>
+
+## Validation rules
+
+The following checks are applied when the config file is loaded. Each failed check produces one line in the `MazeError` output.
+
+| Field | Rule |
+|---|---|
+| `WIDTH` | Must be an integer greater than 1 |
+| `HEIGHT` | Must be an integer greater than 1 |
+| `ENTRY` | Must be within `(0,0)` to `(WIDTH-1, HEIGHT-1)` |
+| `EXIT` | Must be within `(0,0)` to `(WIDTH-1, HEIGHT-1)` |
+| `ENTRY` / `EXIT` | Must not be equal to each other |
+| `SPEED_ANIMATION` | If not `0`, must be between `0.01` and `1.0` inclusive |
+| `PERFECT` | Must be exactly `True` or `False` |
+| `OUTPUT_FILE` | Must be a valid `.txt` filename |
+
+## The 42 pattern
+
+When the maze is large enough, A-Maze-ing embeds the number "42" as a visual pattern at the center of the grid.
+
+<Note>
+The 42 pattern is activated when `WIDTH >= 9` **and** `HEIGHT >= 7`. If either dimension is below the threshold, the pattern cannot be rendered and a warning is shown — you must confirm to continue.
+</Note>
+
+Additionally, `ENTRY` and `EXIT` coordinates must not overlap with any of the cells occupied by the 42 pattern. If they do, validation will fail with an error.
+
+**Recommended minimum dimensions for the 42 pattern:**
+
+```text
+WIDTH=15
+HEIGHT=11
+```
+
+## Example config.txt
+
+```text config.txt
+# --- A-Maze-ing configuration ---
+
+# Dimensions (both must be > 1)
+WIDTH=15
+HEIGHT=11
+
+# Entry at top-left, exit at bottom-right
+ENTRY=(0,0)
+EXIT=(14,10)
+
+# Write rendered maze to this file
+OUTPUT_FILE=maze_output.txt
+
+# Perfect maze (no loops)
+PERFECT=True
+
+# Reproducible generation
+SEED=42
+
+# Animate at ~20 fps
+SPEED_ANIMATION=0.05
+```
+
+## Common errors and fixes
+
+<AccordionGroup>
+  <Accordion title="Error: WIDTH or HEIGHT is less than 2">
+    **Cause:** `WIDTH=1` or `HEIGHT=1` (or zero/negative).
+
+    **Fix:** Set both dimensions to at least `2`. For the 42 pattern, use `WIDTH >= 9` and `HEIGHT >= 7`.
+
+    ```text
+    WIDTH=15
+    HEIGHT=11
+    ```
+  </Accordion>
+
+  <Accordion title="Error: ENTRY and EXIT are the same">
+    **Cause:** Both coordinates resolve to the same cell.
+
+    **Fix:** Use different coordinates for `ENTRY` and `EXIT`.
+
+    ```text
+    ENTRY=(0,0)
+    EXIT=(14,10)
+    ```
+  </Accordion>
+
+  <Accordion title="Error: coordinate out of bounds">
+    **Cause:** An `x` value >= `WIDTH` or a `y` value >= `HEIGHT`.
+
+    **Fix:** Ensure coordinates are within `(0,0)` to `(WIDTH-1, HEIGHT-1)`. For a 15×11 maze, the maximum valid coordinate is `(14,10)`.
+  </Accordion>
+
+  <Accordion title="Error: SPEED_ANIMATION out of range">
+    **Cause:** A non-zero value smaller than `0.01` or larger than `1.0` was given.
+
+    **Fix:** Use exactly `0` for no animation, or a value between `0.01` and `1.0`.
+
+    ```text
+    SPEED_ANIMATION=0.05
+    ```
+  </Accordion>
+
+  <Accordion title="Error: PERFECT must be True or False">
+    **Cause:** Any value other than the exact strings `True` or `False` (e.g., `true`, `1`, `yes`).
+
+    **Fix:** Use `PERFECT=True` or `PERFECT=False` exactly.
+  </Accordion>
+
+  <Accordion title="Error: OUTPUT_FILE is not a .txt file">
+    **Cause:** The filename does not end with `.txt`.
+
+    **Fix:** Use a filename with a `.txt` extension.
+
+    ```text
+    OUTPUT_FILE=maze_output.txt
+    ```
+  </Accordion>
+</AccordionGroup>

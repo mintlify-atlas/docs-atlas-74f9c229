@@ -1,0 +1,183 @@
+---
+title: "Output"
+description: "Serialize maze grids and solutions to hexadecimal output files."
+---
+
+The `mazegen.output` module converts the internal grid representation into a human-readable hex file and turns a coordinate path into a cardinal-direction string. The primary public API is `generate_output()`.
+
+## Output file format
+
+```text output_maze.txt
+D393953953
+BC6C696C3A
+851796D56A
+...
+
+1,2
+8,9
+WSSSSSSENEESEEEEE
+```
+
+The file contains three sections separated by blank lines:
+
+1. **Hex grid** — one row of hex values per maze row. Each hex digit encodes the bitmask of one cell (see [MazeGenerator — get_grid()](/api/maze-generator#get_grid)).
+2. **Entry coordinates** — `x,y` of the entry cell.
+3. **Exit coordinates** — `x,y` of the exit cell.
+4. **Direction string** — the solved path as a sequence of `N`, `E`, `S`, `W` characters.
+
+---
+
+## Functions
+
+### `generate_output(maze)` — primary public API
+
+```python
+generate_output(maze: MazeGenerator) -> None
+```
+
+Generates and saves the output file containing the current state of the maze. Combines the hex grid, entry/exit coordinates, and the direction string into one file, then writes it to `maze.output_file`.
+
+<ParamField path="maze" type="MazeGenerator" required>
+  A fully generated `MazeGenerator` instance. Call `generate()` and `calculate_path()` before passing the instance here so that both the grid and path are populated.
+</ParamField>
+
+```python
+from mazegen import MazeGenerator, generate_output
+
+maze = MazeGenerator(width=10, height=10, entry=(0, 0), exit=(9, 9))
+maze.generate()
+maze.calculate_path()
+generate_output(maze)  # writes to output_maze.txt
+```
+
+---
+
+### `int_to_hex(maze)`
+
+```python
+int_to_hex(maze: list[list[int]]) -> list[str]
+```
+
+Converts the 2D decimal grid array into a list of hexadecimal row strings. Each integer cell value (0–15) becomes one uppercase hex digit.
+
+<ParamField path="maze" type="list[list[int]]" required>
+  The maze grid with decimal bitmask values (0–15 per cell).
+</ParamField>
+
+**Returns:** A list of strings, each representing one complete row in hex format.
+
+```python
+# grid row [13, 3, 9, 3, 9, 5, 3, 9, 5, 3]
+# becomes  "D393953953"
+```
+
+<Note>
+  This is an internal helper called by `generate_output()`. You rarely need to call it directly.
+</Note>
+
+---
+
+### `hex_to_str(maze)`
+
+```python
+hex_to_str(maze: list[str]) -> str
+```
+
+Joins a list of hex row strings into a single multi-line string ready to write to a file.
+
+<ParamField path="maze" type="list[str]" required>
+  A list of rows in hexadecimal format, as produced by `int_to_hex()`.
+</ParamField>
+
+**Returns:** A complete maze representation as one multi-line string.
+
+<Note>
+  This is an internal helper called by `generate_output()`.
+</Note>
+
+---
+
+### `dir_to_path(path)`
+
+```python
+dir_to_path(path: list[tuple[int, int]]) -> str
+```
+
+Converts an ordered list of `(x, y)` coordinates into a sequence of cardinal direction characters by computing the delta between each consecutive pair of coordinates.
+
+**Direction mapping:**
+
+| Delta `(dx, dy)` | Character |
+|---|---|
+| `(0, -1)` | `N` |
+| `(1, 0)` | `E` |
+| `(0, 1)` | `S` |
+| `(-1, 0)` | `W` |
+
+<ParamField path="path" type="list[tuple[int, int]]" required>
+  An ordered list of `(x, y)` coordinates representing the solved route.
+</ParamField>
+
+**Returns:** A string of direction characters, e.g. `"NNESWW"`. Returns an empty string if `path` contains fewer than 2 coordinates.
+
+```python
+from mazegen.output import dir_to_path
+
+result = dir_to_path([(0, 0), (1, 0), (1, 1), (2, 1)])
+print(result)  # "ESE"
+```
+
+---
+
+## Full workflow example
+
+<Steps>
+  <Step title="Generate the maze">
+    ```python
+    from mazegen import MazeGenerator, generate_output
+
+    maze = MazeGenerator(
+        width=15,
+        height=10,
+        entry=(0, 5),
+        exit=(14, 5),
+        seed=7,
+    )
+    maze.generate()
+    ```
+  </Step>
+  <Step title="Solve the maze">
+    ```python
+    maze.calculate_path()
+    ```
+  </Step>
+  <Step title="Write the output file">
+    ```python
+    generate_output(maze)
+    # Writes grid, entry, exit, and direction string to output_maze.txt
+    ```
+  </Step>
+  <Step title="Inspect the result">
+    ```bash
+    cat output_maze.txt
+    ```
+
+    ```text
+    F9B7B...
+    ...
+
+    0,5
+    14,5
+    EEESSEENNEE...
+    ```
+  </Step>
+</Steps>
+
+<Columns cols={2}>
+  <Card title="MazeGenerator" icon="grid-2x2" href="/api/maze-generator">
+    Generate the maze and calculate the path before calling generate_output().
+  </Card>
+  <Card title="Visualization" icon="monitor" href="/api/visualization">
+    Render the maze in the terminal before or after writing the file.
+  </Card>
+</Columns>

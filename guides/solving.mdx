@@ -1,0 +1,230 @@
+---
+title: "Solving Mazes"
+description: "How A-Maze-ing finds the shortest path using BFS breadth-first search."
+---
+
+A-Maze-ing solves mazes using **breadth-first search (BFS)**, which guarantees the shortest possible path from the entry to the exit. The result is a list of `(x, y)` coordinate tuples that can be used directly or converted into a direction string.
+
+## Why BFS instead of DFS
+
+Both BFS and DFS can find *a* path through a maze, but they have different guarantees:
+
+| Property                  | BFS               | DFS               |
+|---------------------------|-------------------|-------------------|
+| Finds shortest path       | Always            | Not guaranteed    |
+| Memory usage              | O(width × height) | O(path length)    |
+| Explores level-by-level   | Yes               | No                |
+| Suitable for imperfect mazes | Yes            | Yes               |
+
+<Tip>
+BFS is the right choice here because the maze grid is an **unweighted graph** — every step costs the same. In an unweighted graph, the first time BFS reaches a node is guaranteed to be via the shortest path.
+</Tip>
+
+## How BFS works in the maze
+
+The solver treats the maze as a graph where each cell is a node and each open wall is an edge between adjacent nodes.
+
+<Steps>
+  <Step title="Initialize the queue">
+    Add the entry cell to a FIFO queue. Create a `came_from` dictionary mapping each visited cell to the cell it was reached from. Set `came_from[entry] = None`.
+
+    ```python
+    queue_pos = [self.entry]
+    came_from = {self.entry: None}
+    ```
+  </Step>
+  <Step title="Expand level by level">
+    Dequeue the front cell `(cx, cy)`. For each of the four directions (N, E, S, W), check whether that wall is open using the bitmask. If the neighbor `(nx, ny)` has not been visited yet, record it in `came_from` and add it to the queue.
+
+    ```python
+    for dx, dy, wall, _ in self.__directions:
+        nx, ny = cx + dx, cy + dy
+        if not (self.__grid[cy][cx] & wall) and (nx, ny) not in came_from:
+            came_from[(nx, ny)] = (cx, cy)
+            queue_pos.append((nx, ny))
+    ```
+
+    The wall check `not (grid[cy][cx] & wall)` returns `True` when that wall bit is **cleared**, meaning a passage exists.
+  </Step>
+  <Step title="Stop at the exit">
+    When the dequeued cell equals the exit coordinates, stop immediately. Because BFS explores shortest paths first, this is guaranteed to be the minimum-step route.
+
+    ```python
+    if (cx, cy) == self.exit:
+        break
+    ```
+  </Step>
+  <Step title="Reconstruct the path">
+    Walk backwards through `came_from` starting from the exit, following each cell's predecessor until reaching the entry (where `came_from[entry] == None`). Reverse the result to get entry → exit order.
+
+    ```python
+    path = []
+    current = self.exit
+    while current is not None:
+        path.append(current)
+        current = came_from[current]
+    self.__path = path[::-1]
+    ```
+  </Step>
+</Steps>
+
+### Visual example
+
+In a 4×4 maze, BFS expands outward in rings from the entry:
+
+```text
+Entry (0,0)
+
+Step 1:  explore (0,0)
+Step 2:  explore (1,0), (0,1)          ← distance 1 from entry
+Step 3:  explore (2,0), (1,1), (0,2)   ← distance 2 from entry
+...
+Reach exit → shortest path found
+```
+
+The `came_from` map records exactly how each cell was first discovered, so the path reconstruction always traces the shortest route.
+
+## Using calculate_path()
+
+`calculate_path()` runs the full BFS and returns the path as a list of `(x, y)` tuples.
+
+```python
+from mazegen.generator import MazeGenerator
+
+maze = MazeGenerator(
+    width=20,
+    height=15,
+    entry=(0, 7),
+    exit=(19, 7),
+    seed=42,
+)
+maze.generate()
+
+path = maze.calculate_path()
+print(f"Path length: {len(path)} cells")
+print(f"First cell: {path[0]}")   # (0, 7) — entry
+print(f"Last cell:  {path[-1]}")  # (19, 7) — exit
+```
+
+The returned list always starts at `entry` and ends at `exit`. For a perfect maze there is exactly one possible path, so the result is deterministic given a fixed seed. For imperfect mazes the shortest path may differ from a simple traversal route.
+
+<Note>
+You must call `generate()` before calling `calculate_path()`. The BFS solver reads from the internal grid that `generate()` populates.
+</Note>
+
+## Iterating through solve steps
+
+For fine-grained control — such as driving your own animation loop — use `solve_algo()` directly. It is a generator that yields `(came_from, current_cell)` at each BFS step.
+
+```python
+step_count = 0
+for came_from_state, current_cell in maze.solve_algo():
+    step_count += 1
+
+print(f"BFS explored {step_count} cells before reaching exit")
+```
+
+## Converting the path to directions
+
+`dir_to_path()` in `output.py` converts the coordinate list into a compact direction string using the characters `N`, `S`, `E`, `W`.
+
+```python
+from mazegen.output import dir_to_path
+
+path = maze.calculate_path()
+directions = dir_to_path(path)
+print(directions)  # e.g. "EEEENNEESSSWWW"
+```
+
+The function computes the delta between each consecutive pair of coordinates and maps it to a cardinal direction:
+
+| Delta (dx, dy) | Direction |
+|----------------|-----------|
+| (0, -1)        | N         |
+| (1, 0)         | E         |
+| (0, 1)         | S         |
+| (-1, 0)        | W         |
+
+<CodeGroup>
+
+```python Solve and print directions
+from mazegen.generator import MazeGenerator
+from mazegen.output import dir_to_path
+
+maze = MazeGenerator(
+    width=15,
+    height=10,
+    entry=(0, 0),
+    exit=(14, 9),
+    seed=7,
+)
+maze.generate()
+
+path = maze.calculate_path()
+directions = dir_to_path(path)
+
+print(f"Steps: {len(path) - 1}")
+print(f"Route: {directions}")
+```
+
+```python Compare perfect vs imperfect path length
+from mazegen.generator import MazeGenerator
+
+kwargs = dict(width=25, height=20, entry=(0, 10), exit=(24, 10), seed=5)
+
+perfect = MazeGenerator(**kwargs, perfect=True)
+perfect.generate()
+p_path = perfect.calculate_path()
+
+imperfect = MazeGenerator(**kwargs, perfect=False)
+imperfect.generate()
+i_path = imperfect.calculate_path()
+
+print(f"Perfect maze path:   {len(p_path)} cells")
+print(f"Imperfect maze path: {len(i_path)} cells")
+```
+
+</CodeGroup>
+
+## BFS animation with render_solve()
+
+`render_solve()` in `visual.py` wraps `solve_algo()` to display the BFS frontier expanding through the maze in real time. Cells on the active frontier are highlighted in **cyan**.
+
+```python
+from mazegen.generator import MazeGenerator
+from mazegen.visual import render_solve
+
+maze = MazeGenerator(
+    width=20,
+    height=15,
+    entry=(0, 7),
+    exit=(19, 7),
+    seed=42,
+    speed_animation=0.05,
+)
+maze.generate()
+render_solve(maze)
+```
+
+See [Visualization](/guides/visualization) for the full render API including color options and animation control.
+
+<AccordionGroup>
+  <Accordion title="What if the maze has no solution?">
+    A perfect maze always has exactly one solution — BFS will always find it. In an imperfect maze the extra passages only add more routes, never block existing ones. A correctly generated maze is always fully connected, so `calculate_path()` will always return a valid path.
+  </Accordion>
+  <Accordion title="Why is the path a list of tuples rather than cell values?">
+    Coordinates are more useful as output: you can index back into the grid, render highlighted cells, convert to directions, or feed into an animation. The bitmask value at each cell tells you about walls, not position.
+  </Accordion>
+  <Accordion title="Does the path include the entry and exit cells?">
+    Yes. The reconstructed path always starts with the entry coordinates and ends with the exit coordinates, inclusive.
+  </Accordion>
+</AccordionGroup>
+
+<Columns cols={2}>
+  <Card title="Maze generation" icon="wand" href="/guides/maze-generation">
+    Understand the DFS algorithm that creates the maze the solver runs on.
+  </Card>
+  <Card title="Output format" icon="file-text" href="/guides/output-format">
+    Save the solved maze and direction string to a file.
+  </Card>
+</Columns>

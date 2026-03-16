@@ -1,0 +1,158 @@
+---
+title: "Running A-Maze-ing"
+description: "How to run the maze generator and solver from the command line."
+---
+
+## Prerequisites
+
+Before running A-Maze-ing, install the required dependencies:
+
+```bash
+make install
+```
+
+This runs `pip install -r requirements.txt` followed by installing the local `mazegen` wheel package.
+
+<Note>
+The `mazegen` wheel must be present in the project root (e.g., `mazegen-*.whl`) for the install step to succeed. Building it is covered under [Packaging](#packaging).
+</Note>
+
+## Running the program
+
+A-Maze-ing requires exactly one argument: a path to a configuration file.
+
+<CodeGroup>
+
+```bash make
+make run
+```
+
+```bash python
+python3 a_maze_ing.py config.txt
+```
+
+</CodeGroup>
+
+`make run` is a convenience wrapper that expands to `python3 a_maze_ing.py config.txt` using the `PYTHON3`, `MAIN`, and `CONFIG_FILE` Makefile variables.
+
+If you need to point at a different config file, call Python directly:
+
+```bash
+python3 a_maze_ing.py my_custom_config.txt
+```
+
+<Warning>
+Passing zero or more than one argument causes the program to print a usage message in red and exit immediately:
+
+```
+run: python3 a_maze_ing.py "file_name"
+```
+</Warning>
+
+## Debug mode
+
+Run the program under the Python debugger (pdb) to step through execution:
+
+<CodeGroup>
+
+```bash make
+make debug
+```
+
+```bash python
+python3 -m pdb a_maze_ing.py config.txt
+```
+
+</CodeGroup>
+
+Once inside pdb, use standard debugger commands (`n` for next, `s` for step, `c` for continue, `q` for quit).
+
+## Linting
+
+Two lint targets are available, using both `flake8` for style and `mypy` for type checking.
+
+<Tabs>
+  <Tab title="Standard">
+    ```bash
+    make lint
+    ```
+
+    Runs `flake8` and `mypy` with moderate strictness:
+
+    ```bash
+    python3 -m flake8 . --exclude=.venv,.mypy_cache
+    mypy . --warn-return-any --warn-unused-ignores \
+           --ignore-missing-imports --disallow-untyped-defs \
+           --check-untyped-defs \
+           --exclude "(.venv|.mypy_cache)"
+    ```
+  </Tab>
+  <Tab title="Strict">
+    ```bash
+    make lint-strict
+    ```
+
+    Runs `flake8` and `mypy` with `--strict` mode, which enables all optional error codes:
+
+    ```bash
+    python3 -m flake8 . --exclude=.venv,.mypy_cache
+    mypy . --strict --exclude "(.venv|.mypy_cache)"
+    ```
+  </Tab>
+</Tabs>
+
+<Note>
+Both lint targets use `-@` in the Makefile, so lint errors do not stop the make process. Check the output manually for warnings and errors.
+</Note>
+
+## Cleaning up
+
+Remove build artifacts and bytecode cache directories:
+
+```bash
+make clean
+```
+
+This deletes:
+- `.mypy_cache/`
+- `dist/`
+- `build/`
+- `*.egg-info/`
+- All `__pycache__/` directories (recursively)
+
+## Packaging
+
+Build a wheel distribution of the `mazegen` library:
+
+```bash
+make package
+```
+
+This runs `python3 -m build -w` and copies the resulting `.whl` file from `dist/` to the project root, making it available for `make install`.
+
+## Error handling
+
+Errors at startup are printed in red and cause the program to exit.
+
+<Steps>
+  <Step title="Config file not found or unreadable">
+    If the path you pass does not exist or cannot be opened, `mazegen.MazeGenerator.maze_from_file` raises a `MazeError`. The error message is printed in red and the process exits:
+
+    ```
+    ERROR: Cannot open file "config.txt".
+    ```
+  </Step>
+  <Step title="Config file has validation errors">
+    If the file is found but contains invalid or missing keys, a `MazeError` is raised with one formatted line per error:
+
+    ```
+    PREFIX: message one.
+    PREFIX: message two.
+    ```
+
+    See [Configuration](/cli/configuration) for the full list of validation rules.
+  </Step>
+  <Step title="Successful startup">
+    When the config file is valid, the maze is generated and the interactive terminal menu appears. No further startup errors are possible.
+  </Step>
+</Steps>

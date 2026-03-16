@@ -1,0 +1,318 @@
+---
+title: "MazeGenerator"
+description: "Core class for maze generation, solving, and path finding."
+---
+
+`MazeGenerator` is the central object in `mazegen`. It holds the grid, entry and exit coordinates, generation settings, and the solved path. All generation and solving algorithms operate on one instance.
+
+```python
+from mazegen import MazeGenerator
+
+maze = MazeGenerator(
+    width=20,
+    height=15,
+    entry=(0, 0),
+    exit=(19, 14),
+)
+maze.generate()
+maze.calculate_path()
+```
+
+## Constructor
+
+```python
+MazeGenerator(
+    width,
+    height,
+    entry,
+    exit,
+    seed=0,
+    perfect=True,
+    output_file="output_maze.txt",
+    speed_animation=0,
+)
+```
+
+Initialises the maze generator and prepares the grid. Validates all parameters, determines whether the maze is large enough for the built-in `"42"` pattern, and calls `reset_maze()` to build the initial grid with all walls closed.
+
+### Parameters
+
+<ParamField path="width" type="int" required>
+  Maze width in number of cells. Must be a positive integer.
+</ParamField>
+
+<ParamField path="height" type="int" required>
+  Maze height in number of cells. Must be a positive integer.
+</ParamField>
+
+<ParamField path="entry" type="tuple[int, int]" required>
+  Entry cell coordinates `(x, y)`. Must be a valid cell position within the grid and must not overlap with a cell occupied by the `"42"` pattern.
+</ParamField>
+
+<ParamField path="exit" type="tuple[int, int]" required>
+  Exit cell coordinates `(x, y)`. Must be a valid cell position within the grid, must not equal `entry`, and must not overlap with a cell occupied by the `"42"` pattern.
+</ParamField>
+
+<ParamField path="seed" type="int" default="0">
+  Seed for random number generation. `0` produces a different maze on every run. Any other positive integer makes generation reproducible.
+</ParamField>
+
+<ParamField path="perfect" type="bool" default="True">
+  When `True`, generates a perfect maze — exactly one path exists between any two cells. When `False`, some interior walls are randomly removed, creating multiple routes.
+</ParamField>
+
+<ParamField path="output_file" type="str" default="output_maze.txt">
+  Filename used by `generate_output()` when writing the maze to disk.
+</ParamField>
+
+<ParamField path="speed_animation" type="float" default="0">
+  Delay between animation frames in seconds. `0` disables animation entirely.
+</ParamField>
+
+**Raises:** `MazeError` if any parameter fails validation.
+
+---
+
+## Class method
+
+### `maze_from_file(filename)`
+
+```python
+@classmethod
+MazeGenerator.maze_from_file(filename: str) -> MazeGenerator
+```
+
+Creates an instance of `MazeGenerator` from a `KEY=VALUE` configuration file. Reads and parses the file, converts all keys to lower case, then passes the resulting dictionary to the main constructor.
+
+<ParamField path="filename" type="str" required>
+  Path to a configuration file in `KEY=VALUE` format. See the [Configuration Parser](/api/configuration-parser) page for the full schema.
+</ParamField>
+
+**Returns:** A new `MazeGenerator` instance configured according to the file.
+
+**Raises:** `MazeError` if the file does not exist, lacks read permissions, or contains formatting or value errors.
+
+```python
+maze = MazeGenerator.maze_from_file("config.txt")
+```
+
+---
+
+## Generation methods
+
+### `generate()`
+
+```python
+maze.generate() -> list[list[int]]
+```
+
+Generates the complete maze according to the configured mode (`perfect` or imperfect). Calls `reset_maze()` internally before running the algorithm.
+
+**Returns:** The completed grid as a 2D list of integers.
+
+```python
+grid = maze.generate()
+```
+
+### `perfect_algo()`
+
+```python
+maze.perfect_algo() -> Generator[tuple[list[list[int]], list], None, None]
+```
+
+DFS-with-backtracking generator used internally by `generate()` and `render_generation()`. Yields one step at a time so animation code can redraw between steps.
+
+**Yields:** A tuple `(grid, stack)` — the current grid state and the DFS backtrack stack.
+
+<Note>
+  Call `generate()` in normal usage. Use `perfect_algo()` directly only if you need frame-by-frame control outside of the provided render helpers.
+</Note>
+
+### `non_perfect_algo()`
+
+```python
+maze.non_perfect_algo() -> Generator[tuple[list[list[int]], list], None, None]
+```
+
+Imperfect maze generator. Runs `perfect_algo()` to completion first, then randomly removes a percentage of interior walls while preserving protected cells and corridor-width constraints.
+
+**Yields:** A tuple `(grid, modified_cells)` at each wall demolition step.
+
+### `reset_maze()`
+
+```python
+maze.reset_maze() -> list[list[int]]
+```
+
+Resets the maze to a fully walled state (all cells set to `15`). Initialises the random seed, recreates the grid, clears visited-cell tracking, and re-applies the `"42"` pattern.
+
+**Returns:** The reset grid.
+
+**Raises:** `MazeError` if the entry or exit coordinates coincide with a cell in the `"42"` pattern.
+
+---
+
+## Solving methods
+
+### `calculate_path()`
+
+```python
+maze.calculate_path() -> list[tuple[int, int]]
+```
+
+Finds the shortest path between entry and exit using BFS. Stores the result internally so it can be retrieved with `get_path()` and drawn with the render helpers.
+
+**Returns:** An ordered list of `(x, y)` coordinates from entry to exit.
+
+```python
+grid = maze.generate()
+path = maze.calculate_path()
+print(path)  # [(0, 0), (1, 0), (1, 1), ...]
+```
+
+### `solve_algo()`
+
+```python
+maze.solve_algo() -> Generator[tuple[dict, tuple[int, int]], None, None]
+```
+
+BFS solver generator used internally by `calculate_path()` and `render_solve()`. Yields one BFS expansion step at a time.
+
+**Yields:** A tuple `(came_from, current_cell)` at each step.
+
+---
+
+## Grid and path accessors
+
+### `get_grid()`
+
+```python
+maze.get_grid() -> list[list[int]]
+```
+
+Returns the current maze grid.
+
+**Returns:** A 2D list of integers. Each integer is a 4-bit bitmask encoding which walls are closed:
+
+| Bit | Direction | Value |
+|-----|-----------|-------|
+| 0 | North | 1 |
+| 1 | East | 2 |
+| 2 | South | 4 |
+| 3 | West | 8 |
+
+A cell with value `15` (`0b1111`) has all four walls closed. A cell with value `0` has all walls open.
+
+```python
+grid = maze.get_grid()
+cell = grid[row][col]  # e.g. 9 = North + West walls closed
+```
+
+### `get_path()`
+
+```python
+maze.get_path() -> list[tuple[int, int]]
+```
+
+Returns the current path stored on the instance. This is populated by `calculate_path()` or `set_path()`.
+
+**Returns:** A list of `(x, y)` coordinate tuples.
+
+### `set_path(path)`
+
+```python
+maze.set_path(path: list[tuple[int, int]]) -> None
+```
+
+Manually assigns a path to the instance, replacing any previously calculated one. Useful for testing or custom routing logic.
+
+<ParamField path="path" type="list[tuple[int, int]]" required>
+  An ordered list of `(x, y)` coordinates that form the path.
+</ParamField>
+
+---
+
+## Utility methods
+
+### `open_doors(pos)`
+
+```python
+maze.open_doors(pos: tuple[int, int]) -> None
+```
+
+Opens the outer wall of a cell if that cell sits on the edge of the maze. Used internally to carve entry and exit openings.
+
+<ParamField path="pos" type="tuple[int, int]" required>
+  Coordinates `(x, y)` of the cell to open.
+</ParamField>
+
+### `debug_print_state()`
+
+```python
+maze.debug_print_state() -> None
+```
+
+Prints the current grid state to stdout. Intended for debugging only.
+
+---
+
+## Common usage patterns
+
+<CodeGroup>
+
+```python basic generation and output
+from mazegen import MazeGenerator, generate_output
+
+maze = MazeGenerator(
+    width=10,
+    height=10,
+    entry=(0, 0),
+    exit=(9, 9),
+    seed=42,
+)
+maze.generate()
+maze.calculate_path()
+generate_output(maze)
+```
+
+```python from config file
+from mazegen import MazeGenerator, generate_output
+
+maze = MazeGenerator.maze_from_file("maze_config.txt")
+maze.generate()
+maze.calculate_path()
+generate_output(maze)
+```
+
+```python imperfect maze with animation
+from mazegen import MazeGenerator, render_generation, render_solve, Color
+
+maze = MazeGenerator(
+    width=20,
+    height=15,
+    entry=(0, 7),
+    exit=(19, 7),
+    perfect=False,
+    speed_animation=0.05,
+)
+render_generation(maze, wall_color=Color.CYAN)
+maze.calculate_path()
+render_solve(maze, color=Color.YELLOW)
+```
+
+</CodeGroup>
+
+<Columns cols={2}>
+  <Card title="Configuration Parser" icon="settings" href="/api/configuration-parser">
+    Understand the KEY=VALUE file format used by maze_from_file().
+  </Card>
+  <Card title="Visualization" icon="monitor" href="/api/visualization">
+    Render, animate, and display mazes in the terminal.
+  </Card>
+  <Card title="Output" icon="file-output" href="/api/output">
+    Write the maze and path to a hex output file.
+  </Card>
+  <Card title="MazeError" icon="circle-alert" href="/api/errors">
+    Handle validation and configuration errors.
+  </Card>
+</Columns>

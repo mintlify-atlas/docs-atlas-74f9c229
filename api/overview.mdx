@@ -1,0 +1,106 @@
+---
+title: "Package Overview"
+description: "The mazegen Python package — all public exports, modules, and installation."
+---
+
+The `mazegen` package provides maze generation, solving, ASCII visualization, and file output. It is distributed as a Python wheel and has no external runtime dependencies.
+
+## Installation
+
+```bash
+pip install mazegen-1.0.0-py3-none-any.whl
+```
+
+## Quick import
+
+```python
+from mazegen import (
+    MazeGenerator,
+    MazeError,
+    generate_output,
+    render_maze,
+    render_solve,
+    render_generation,
+    render_path,
+    Color,
+)
+```
+
+## Public exports
+
+All eight names listed in `__all__`:
+
+| Name | Kind | Module |
+|---|---|---|
+| `MazeGenerator` | class | `mazegen.generator` |
+| `MazeError` | exception class | `mazegen.errors` |
+| `generate_output` | function | `mazegen.output` |
+| `render_maze` | function | `mazegen.visual` |
+| `render_solve` | function | `mazegen.visual` |
+| `render_generation` | function | `mazegen.visual` |
+| `render_path` | function | `mazegen.visual` |
+| `Color` | enum | `mazegen.visual` |
+
+## Module breakdown
+
+<Columns cols={2}>
+  <Card title="MazeGenerator" icon="grid-2x2" href="/api/maze-generator">
+    Core class. Generates mazes with DFS, solves them with BFS, manages the grid and path state.
+  </Card>
+  <Card title="MazeError" icon="circle-alert" href="/api/errors">
+    Custom exception that groups multiple validation messages under a single prefix.
+  </Card>
+  <Card title="Output" icon="file-output" href="/api/output">
+    Serialises maze grids to hexadecimal text files and converts paths to cardinal-direction strings.
+  </Card>
+  <Card title="Visualization" icon="monitor" href="/api/visualization">
+    ANSI terminal rendering — static display, DFS generation animation, BFS solve animation, and path drawing.
+  </Card>
+</Columns>
+
+<Note>
+  `mazegen.parsing` is used internally by `MazeGenerator.maze_from_file()`. Its functions are documented on the [Configuration Parser](/api/configuration-parser) page.
+</Note>
+
+## Building the package yourself
+
+The repository ships a `pyproject.toml`. To produce the wheel:
+
+<Steps>
+  <Step title="Install build">
+    ```bash
+    pip install build
+    ```
+  </Step>
+  <Step title="Build the wheel">
+    ```bash
+    python3 -m build -w
+    ```
+    The `.whl` file is written to the `dist/` directory.
+  </Step>
+  <Step title="Install the wheel">
+    ```bash
+    pip install dist/mazegen-1.0.0-py3-none-any.whl
+    ```
+  </Step>
+</Steps>
+
+## Detailed API pages
+
+<Columns cols={2}>
+  <Card title="MazeGenerator" icon="grid-2x2" href="/api/maze-generator">
+    Constructor, generation, solving, path, and low-level grid methods.
+  </Card>
+  <Card title="Configuration Parser" icon="settings" href="/api/configuration-parser">
+    File parsing, schema validation, and type conversion for KEY=VALUE config files.
+  </Card>
+  <Card title="Output" icon="file-output" href="/api/output">
+    Hex serialization and direction-string conversion.
+  </Card>
+  <Card title="Visualization" icon="monitor" href="/api/visualization">
+    Color enum, render functions, and animation helpers.
+  </Card>
+  <Card title="MazeError" icon="circle-alert" href="/api/errors">
+    Exception structure, error categories, and handling patterns.
+  </Card>
+</Columns>

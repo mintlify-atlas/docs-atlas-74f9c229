@@ -1,0 +1,115 @@
+---
+title: "Interactive Commands"
+description: "Control the maze display with keyboard commands after generation."
+---
+
+## Overview
+
+After the maze is generated and rendered, A-Maze-ing displays an interactive menu in the terminal. You enter a number (1–4) to control the display and trigger actions. The menu remains active until you quit.
+
+```text
+=== A-Maze-ing ===
+[1]. Re-generate a new maze
+[2]. Show path from entry to exit
+[3]. Change maze colors
+[4]. Quit
+
+Choise? (1-4):
+```
+
+The menu re-renders after every action, reflecting the current state (e.g., option 2 toggles between "Show path" and "Hide path").
+
+## Commands
+
+### 1 — Re-generate maze
+
+Generates a brand-new maze using a fresh random seed (or the configured `SEED`, if non-zero).
+
+- The maze and its solution path are recalculated from scratch.
+- If `SPEED_ANIMATION > 0`, both the generation and the solving steps are rendered frame-by-frame before the menu reappears.
+- If `SPEED_ANIMATION = 0`, the new maze appears instantly.
+
+<Tip>
+Use `SEED=0` in your config to get a different maze each time you press 1, or set a specific integer seed to regenerate the exact same maze repeatedly.
+</Tip>
+
+### 2 — Toggle solution path
+
+Shows or hides the BFS solution path from the entry cell to the exit cell.
+
+- The menu label updates to reflect the current state: **"Show path"** when hidden, **"Hide path"** when visible.
+- When the path is shown and `SPEED_ANIMATION > 0`, the path is drawn with an animation the next time it becomes visible.
+- Entry and exit cells are always highlighted regardless of this toggle (see [Color palettes](#color-palettes)).
+
+### 3 — Change maze colors
+
+Cycles to the next color in the palette. The colors rotate in order and wrap back to the start:
+
+| Step | Color |
+|---|---|
+| 1 | Yellow |
+| 2 | Blue |
+| 3 | Purple |
+| 4 | Cyan |
+| 5 | Yellow (wraps) |
+
+Press 3 repeatedly to cycle through all four colors. The current color applies to maze walls and path rendering.
+
+### 4 — Quit
+
+Clears the terminal (including scrollback) and exits the program.
+
+<Warning>
+Quit clears the terminal screen using ANSI escape sequences. Any content visible before you launched A-Maze-ing will be cleared from view.
+</Warning>
+
+## Color palettes
+
+Four wall/path colors are available via command 3. Two additional colors are reserved and cannot be changed:
+
+<Columns cols={2}>
+  <Card title="Selectable colors" icon="palette">
+    Cycle through these with command 3:
+
+    - **Yellow** — default
+    - **Blue**
+    - **Purple**
+    - **Cyan**
+  </Card>
+  <Card title="Reserved colors" icon="lock">
+    These are fixed and always visible:
+
+    - **Green** — entry cell
+    - **Red** — exit cell
+  </Card>
+</Columns>
+
+The `BLACK` and `RESET` colors are used internally and are never exposed in the palette.
+
+## Animation behavior
+
+Animation is controlled entirely by the `SPEED_ANIMATION` value in your config file.
+
+<Tabs>
+  <Tab title="No animation (SPEED_ANIMATION=0)">
+    - Maze generation is computed instantly.
+    - Solution path is computed instantly.
+    - The finished maze is displayed immediately after each action.
+  </Tab>
+  <Tab title="Animated (SPEED_ANIMATION > 0)">
+    - Maze generation is rendered cell-by-cell with a delay of `SPEED_ANIMATION` seconds per frame.
+    - Solution path is drawn step-by-step with the same delay.
+    - Animation plays on first load and again after pressing 1 (re-generate) or 2 (show path, first display).
+    - The delay must be between `0.01` and `1.0` seconds. See [Configuration](/cli/configuration) for validation details.
+  </Tab>
+</Tabs>
+
+## Error handling
+
+If you enter anything other than `1`, `2`, `3`, or `4` — including letters, floats, or out-of-range numbers — the program displays a red error message and redisplays the menu without regenerating the maze:
+
+```text
+Select a valid option (1-4).
+```
+
+No state is changed on invalid input; the maze and path visibility remain exactly as they were.

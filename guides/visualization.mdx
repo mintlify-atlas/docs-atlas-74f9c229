@@ -1,0 +1,276 @@
+---
+title: "Visualization"
+description: "Interactive ANSI ASCII terminal visualization with animated generation and solving."
+---
+
+A-Maze-ing renders mazes directly in the terminal using ASCII box-drawing characters and ANSI escape codes for color. You can display a static snapshot, animate the DFS generation step-by-step, or watch the BFS solver expand through the maze in real time.
+
+## ASCII rendering model
+
+The renderer uses a fixed set of drawing primitives:
+
+| Symbol | Meaning                        |
+|--------|--------------------------------|
+| `+`    | Corner intersection            |
+| `---`  | Horizontal wall (closed)       |
+| `   `  | Horizontal gap (open passage)  |
+| `\|`   | Vertical wall (closed)         |
+| ` `    | Vertical gap (open passage)    |
+| ` ■ `  | Filled cell (entry/exit/path)  |
+
+Each cell in the grid is read as a bitmask (see [Grid bitmask encoding](/guides/maze-generation#grid-bitmask-encoding)). The renderer checks each bit to decide whether to draw a wall or a gap on each side.
+
+### Example output
+
+```text
++---+---+---+---+
+|   |       |   |
++   +---+   +   +
+|       |       |
++---+   +---+   +
+|               |
++---+---+---+---+
+```
+
+## ANSI color system
+
+`visual.py` defines a `Color` enum with the available ANSI colors:
+
+| Color    | ANSI code   | Default role                         |
+|----------|-------------|--------------------------------------|
+| BLACK    | `\033[90m`  | Default wall color                   |
+| RED      | `\033[31m`  | Exit cell                            |
+| GREEN    | `\033[32m`  | Entry cell                           |
+| YELLOW   | `\033[33m`  | DFS stack head (animation)           |
+| BLUE     | `\033[34m`  | Configurable wall color              |
+| PURPLE   | `\033[35m`  | DFS stack body (animation)           |
+| CYAN     | `\033[36m`  | BFS frontier (animation)             |
+| RESET    | `\033[0m`   | Path cells (white/terminal default)  |
+
+The entry cell always renders in **green**, the exit cell always renders in **red**. These colors are fixed and not configurable.
+
+<Note>
+Wall color is configurable via the `wall_color` / `color` parameters on most render functions. The default is `Color.BLACK`.
+</Note>
+
+## render_maze() — static rendering
+
+`render_maze()` produces a full ANSI string of the maze. Pass `terminal=True` to also print it immediately.
+
+```python
+from mazegen.generator import MazeGenerator
+from mazegen.visual import render_maze, Color
+
+maze = MazeGenerator(
+    width=20,
+    height=15,
+    entry=(0, 7),
+    exit=(19, 7),
+    seed=42,
+)
+maze.generate()
+
+# Get the string without printing
+rendered = render_maze(maze, color=Color.BLUE)
+
+# Print immediately
+render_maze(maze, terminal=True)
+```
+
+### Showing the solution path
+
+Pass `show_path=True` after calling `calculate_path()` to overlay the solution on the static render. Path cells are drawn in the terminal's default (white/reset) color.
+
+```python
+maze.generate()
+maze.calculate_path()
+
+render_maze(maze, show_path=True, terminal=True)
+```
+
+### render_maze() parameters
+
+| Parameter   | Type    | Default         | Description                                         |
+|-------------|---------|-----------------|-----------------------------------------------------|
+| `maze`      | MazeGenerator | required  | The maze instance to render                         |
+| `show_path` | bool    | `False`         | Overlay the solved path                             |
+| `color`     | Color   | `Color.BLACK`   | Wall color                                          |
+| `terminal`  | bool    | `False`         | Also print to stdout                                |
+| `stack`     | list    | `None`          | DFS stack for animation highlighting                |
+| `path`      | list    | `None`          | BFS path for animation highlighting                 |
+
+## render_generation() — animated DFS
+
+`render_generation()` animates the DFS maze generation algorithm step by step. As the algorithm runs, the current cell is highlighted in **yellow** and the rest of the stack in **purple**.
+
+```python
+from mazegen.generator import MazeGenerator
+from mazegen.visual import render_generation, Color
+
+maze = MazeGenerator(
+    width=20,
+    height=15,
+    entry=(0, 7),
+    exit=(19, 7),
+    seed=42,
+    speed_animation=0.03,  # seconds per frame
+)
+
+render_generation(maze, wall_color=Color.BLUE)
+```
+
+<Warning>
+During generation animation, `render_generation()` disables terminal echo and ICANON mode to prevent keystrokes from appearing on screen. These settings are restored when the animation finishes. Avoid interrupting the process mid-animation (e.g., with Ctrl+C) as terminal state may not be fully restored.
+</Warning>
+
+### Animation color legend (generation)
+
+| Color  | Meaning                          |
+|--------|----------------------------------|
+| YELLOW | Current DFS cell (stack head)    |
+| PURPLE | DFS backtrack history (stack body) |
+| GREEN  | Entry cell                       |
+| RED    | Exit cell                        |
+| BLACK  | Regular wall (default)           |
+
+## render_solve() — animated BFS
+
+`render_solve()` animates the BFS solver, showing the frontier of explored cells expanding through the maze. Frontier cells are highlighted in **cyan**.
+
+```python
+from mazegen.generator import MazeGenerator
+from mazegen.visual import render_solve, Color
+
+maze = MazeGenerator(
+    width=20,
+    height=15,
+    entry=(0, 7),
+    exit=(19, 7),
+    seed=42,
+    speed_animation=0.05,
+)
+maze.generate()
+
+render_solve(maze, color=Color.BLACK)
+```
+
+### Animation color legend (solving)
+
+| Color | Meaning              |
+|-------|----------------------|
+| CYAN  | Active BFS frontier  |
+| GREEN | Entry cell           |
+| RED   | Exit cell            |
+
+## render_path() — path display
+
+`render_path()` draws the final solution path after solving. It can either show the full path at once or animate it step by step.
+
+```python
+from mazegen.generator import MazeGenerator
+from mazegen.visual import render_path, Color
+
+maze = MazeGenerator(
+    width=20,
+    height=15,
+    entry=(0, 7),
+    exit=(19, 7),
+    seed=42,
+    speed_animation=0.05,
+)
+maze.generate()
+maze.calculate_path()
+
+# Static path display
+render_path(maze, animated_path=False, wall_color=Color.BLUE)
+
+# Animated path (draws one cell at a time)
+render_path(maze, animated_path=True, wall_color=Color.BLUE)
+```
+
+| Parameter      | Type  | Default         | Description                                      |
+|----------------|-------|-----------------|--------------------------------------------------|
+| `maze`         | MazeGenerator | required | The maze instance (must have path calculated)  |
+| `animated_path`| bool  | `False`         | Draw path cell by cell with `speed_animation` delay |
+| `wall_color`   | Color | `Color.BLACK`   | Color for walls                                  |
+
+## Combining generation and solving
+
+A typical interactive workflow runs all four phases in sequence:
+
+<Steps>
+  <Step title="Generate the maze">
+    ```python
+    maze = MazeGenerator(
+        width=25, height=20,
+        entry=(0, 10), exit=(24, 10),
+        seed=100, perfect=True,
+        speed_animation=0.02,
+    )
+    ```
+  </Step>
+  <Step title="Animate generation">
+    ```python
+    from mazegen.visual import render_generation, Color
+    render_generation(maze, wall_color=Color.CYAN)
+    ```
+  </Step>
+  <Step title="Animate solving">
+    ```python
+    from mazegen.visual import render_solve
+    render_solve(maze)
+    ```
+  </Step>
+  <Step title="Display the path">
+    ```python
+    from mazegen.visual import render_path
+    render_path(maze, animated_path=True)
+    ```
+  </Step>
+</Steps>
+
+## Wall color options
+
+<CodeGroup>
+
+```python Black walls (default)
+render_maze(maze, color=Color.BLACK, terminal=True)
+```
+
+```python Blue walls
+from mazegen.visual import Color, render_maze
+render_maze(maze, color=Color.BLUE, terminal=True)
+```
+
+```python Yellow walls
+from mazegen.visual import Color, render_generation
+render_generation(maze, wall_color=Color.YELLOW)
+```
+
+```python Cyan walls
+from mazegen.visual import Color, render_path
+render_path(maze, wall_color=Color.CYAN)
+```
+
+</CodeGroup>
+
+<AccordionGroup>
+  <Accordion title="Why does the terminal look garbled after an interrupted animation?">
+    `render_generation()` disables terminal echo and ICANON mode during animation. If the process is killed mid-animation, run `stty sane` or `reset` in your terminal to restore normal input settings.
+  </Accordion>
+  <Accordion title="Can I render to a string without printing?">
+    Yes. `render_maze()` returns the full ANSI string. Pass `terminal=False` (the default) and use the return value however you need — write it to a file, send it over a socket, etc.
+  </Accordion>
+  <Accordion title="How do I control animation speed?">
+    Set `speed_animation` (in seconds) on the `MazeGenerator` constructor. A value of `0` disables delays, running as fast as the terminal can refresh. Values like `0.02`–`0.05` produce smooth visible animation.
+  </Accordion>
+</AccordionGroup>
+
+<Columns cols={2}>
+  <Card title="Maze generation" icon="wand" href="/guides/maze-generation">
+    Learn how the DFS algorithm builds the maze that gets rendered.
+  </Card>
+  <Card title="Output format" icon="file-text" href="/guides/output-format">
+    Export the maze and solution to a hex-encoded text file.
+  </Card>
+</Columns>

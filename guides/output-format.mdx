@@ -1,0 +1,231 @@
+---
+title: "Output Format"
+description: "The hexadecimal maze output file format written by generate_output()."
+---
+
+`generate_output()` in `output.py` serializes a solved maze to a plain-text file. The file captures the full maze structure, the entry and exit coordinates, and the solution as a direction string — everything needed to reconstruct or replay the maze without re-running the generator.
+
+## File structure
+
+The output file has four sections separated by blank lines:
+
+```text
+<hex grid rows, one per maze row>
+
+<entry coordinates>
+<exit coordinates>
+<direction string>
+```
+
+### Example output file
+
+```text
+D393953953
+BC6C696C3A
+9565A56565
+BC6C696C36
+5A56565A54
+
+1,2
+8,9
+EESSEESSSWWSSEEESSEEENNNEE
+```
+
+In this example:
+- The maze is 10 columns wide and 5 rows tall
+- Entry is at column 1, row 2
+- Exit is at column 8, row 9
+- The solution path travels East twice, South twice, etc.
+
+## Bitmask to hex encoding
+
+Each cell value (0–15) is written as a single uppercase hexadecimal character. `int_to_hex()` handles this conversion:
+
+| Cell value | Binary | Hex character | Walls state             |
+|------------|--------|---------------|-------------------------|
+| 0          | 0000   | `0`           | No walls (fully open)   |
+| 6          | 0110   | `6`           | East + South closed     |
+| 9          | 1001   | `9`           | North + West closed     |
+| 15         | 1111   | `F`           | All walls closed        |
+
+One row of 10 cells produces a string of 10 hex characters. A 20×15 maze produces 15 rows of 20 characters each.
+
+```python
+# int_to_hex converts one full grid
+from mazegen.output import int_to_hex
+
+grid = maze.generate()         # [[15, 14, 9, ...], ...]
+hex_rows = int_to_hex(grid)    # ["FE9...", ...]
+
+for row in hex_rows:
+    print(row)                 # e.g. "D393953953"
+```
+
+## Direction string format
+
+The direction string encodes the solution path as a sequence of single characters:
+
+| Character | Direction | Delta (dx, dy) |
+|-----------|-----------|----------------|
+| `N`       | North     | (0, -1)        |
+| `E`       | East      | (1, 0)         |
+| `S`       | South     | (0, 1)         |
+| `W`       | West      | (-1, 0)        |
+
+`dir_to_path()` converts a list of `(x, y)` coordinate tuples from `calculate_path()` into this string:
+
+```python
+from mazegen.output import dir_to_path
+
+path = [(0,0), (1,0), (2,0), (2,1), (2,2)]
+directions = dir_to_path(path)
+print(directions)  # "EESS"
+```
+
+The string length equals `len(path) - 1` — one character per step between consecutive cells.
+
+## Writing the output file
+
+Call `generate_output()` after both generating and solving the maze:
+
+```python
+from mazegen.generator import MazeGenerator
+from mazegen.output import generate_output
+
+maze = MazeGenerator(
+    width=10,
+    height=5,
+    entry=(1, 2),
+    exit=(8, 3),
+    seed=42,
+    output_file="my_maze.txt",
+)
+
+maze.generate()
+maze.calculate_path()
+
+generate_output(maze)
+# Writes to my_maze.txt
+```
+
+The output filename is set on the `MazeGenerator` constructor via the `output_file` parameter. The default is `output_maze.txt`.
+
+<Note>
+You must call both `generate()` and `calculate_path()` before `generate_output()`. The function reads the internal grid and path state from the `MazeGenerator` instance.
+</Note>
+
+## Reading and parsing the output file
+
+The file format is intentionally simple to parse by hand or in code:
+
+<Steps>
+  <Step title="Read hex grid rows">
+    Read lines until you hit a blank line. Each line is one row. Each character is one cell's hex value.
+
+    ```python
+    with open("my_maze.txt") as f:
+        lines = f.read().splitlines()
+
+    blank = lines.index("")
+    hex_rows = lines[:blank]
+    remainder = lines[blank + 1:]
+    ```
+  </Step>
+  <Step title="Decode hex to bitmasks">
+    Convert each hex character back to an integer to recover the bitmask grid.
+
+    ```python
+    grid = []
+    for row in hex_rows:
+        grid.append([int(ch, 16) for ch in row])
+    # grid[y][x] is the bitmask for cell (x, y)
+    ```
+  </Step>
+  <Step title="Parse entry and exit">
+    The two lines after the blank are the entry and exit coordinates in `x,y` format.
+
+    ```python
+    entry = tuple(int(v) for v in remainder[0].split(","))
+    exit_ = tuple(int(v) for v in remainder[1].split(","))
+    ```
+  </Step>
+  <Step title="Read the direction string">
+    The last line is the direction string.
+
+    ```python
+    directions = remainder[2]
+    print(f"Solution: {directions}")
+    print(f"Steps:    {len(directions)}")
+    ```
+  </Step>
+</Steps>
+
+## Complete round-trip example
+
+<CodeGroup>
+
+```python Write output file
+from mazegen.generator import MazeGenerator
+from mazegen.output import generate_output
+
+maze = MazeGenerator(
+    width=15,
+    height=10,
+    entry=(0, 5),
+    exit=(14, 5),
+    seed=7,
+    output_file="maze_output.txt",
+)
+maze.generate()
+maze.calculate_path()
+generate_output(maze)
+print("Written to maze_output.txt")
+```
+
+```python Read and parse output file
+with open("maze_output.txt") as f:
+    lines = f.read().splitlines()
+
+blank = lines.index("")
+hex_rows = lines[:blank]
+remainder = lines[blank + 1:]
+
+# Decode grid
+grid = [[int(ch, 16) for ch in row] for row in hex_rows]
+
+# Parse coords
+entry = tuple(int(v) for v in remainder[0].split(","))
+exit_ = tuple(int(v) for v in remainder[1].split(","))
+
+# Direction string
+directions = remainder[2]
+
+print(f"Maze size:  {len(grid[0])}x{len(grid)}")
+print(f"Entry:      {entry}")
+print(f"Exit:       {exit_}")
+print(f"Steps:      {len(directions)}")
+print(f"Directions: {directions}")
+```
+
+</CodeGroup>
+
+<AccordionGroup>
+  <Accordion title="Can I use the output file to replay the maze without re-generating?">
+    Yes. The hex grid rows contain the complete wall information for every cell, so you can reconstruct the full `grid` array from the file alone. You do not need the original seed or generator parameters.
+  </Accordion>
+  <Accordion title="What if the solution path is very long?">
+    The direction string has no length limit. For a 100×100 maze the string could be several thousand characters long, but it is still a single line in the file.
+  </Accordion>
+  <Accordion title="Are coordinates zero-indexed?">
+    Yes. `(0, 0)` is the top-left cell. The x-axis increases to the right, and the y-axis increases downward, matching standard 2D array indexing.
+  </Accordion>
+</AccordionGroup>
+
+<Columns cols={2}>
+  <Card title="Solving mazes" icon="route" href="/guides/solving">
+    Understand how calculate_path() produces the path written to the output file.
+  </Card>
+  <Card title="Visualization" icon="monitor" href="/guides/visualization">
+    Render the maze in the terminal before or after saving to file.
+  </Card>
+</Columns>

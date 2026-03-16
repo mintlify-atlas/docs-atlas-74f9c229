@@ -1,0 +1,174 @@
+---
+title: "MazeError"
+description: "Custom exception class for grouped maze validation and configuration errors."
+---
+
+`MazeError` is the single exception type raised throughout `mazegen` for validation and configuration problems. It groups multiple error messages under one prefix so that callers see the complete list of issues in a single exception.
+
+```python
+from mazegen import MazeError
+```
+
+## Class overview
+
+```python
+class MazeError(Exception):
+    prefix: str          # Error category label
+    errors: list[str]    # Individual error messages
+```
+
+`MazeError` extends the built-in `Exception`. Its two attributes — `prefix` and `errors` — are always set and publicly accessible.
+
+---
+
+## Constructor
+
+```python
+MazeError(prefix: str = "", errors: list[str] | None = None)
+```
+
+<ParamField path="prefix" type="str" default='""'>
+  Error category or title displayed before each message. For example `"CONFIG ERROR"` or `"VALUE ERROR"`.
+</ParamField>
+
+<ParamField path="errors" type="list[str] | None" default="None">
+  List of individual error message strings. Defaults to an empty list when `None` is passed.
+</ParamField>
+
+---
+
+## Attributes
+
+<ResponseField name="prefix" type="str">
+  The error category string set at construction time.
+</ResponseField>
+
+<ResponseField name="errors" type="list[str]">
+  The list of individual error messages. Empty list when no messages were provided.
+</ResponseField>
+
+---
+
+## `__str__` behavior
+
+The string representation depends on whether `errors` is populated:
+
+- **No errors:** returns only `prefix`.
+- **With errors:** returns one line per message in the format `"prefix: message."`
+
+```python
+# No errors
+err = MazeError("MAZEGEN ERROR")
+print(err)  # MAZEGEN ERROR
+
+# Multiple errors
+err = MazeError("CONFIG ERROR", ["WIDTH is missing", "HEIGHT is missing"])
+print(err)
+# CONFIG ERROR: WIDTH is missing.
+# CONFIG ERROR: HEIGHT is missing.
+```
+
+---
+
+## Error categories
+
+The following prefix strings are used throughout `mazegen`:
+
+| Prefix | Where raised | Typical causes |
+|--------|--------------|----------------|
+| `"FILE ERROR"` | `get_config_from_file()` | File not found, permission denied. |
+| `"CONFIG ERROR"` | `parsing_config()` | Malformed lines, unknown keys. |
+| `"VALUE ERROR"` | `parsing_config()`, `MazeGenerator.__init__()` | Values of wrong type or out of range. |
+| `"MAZEGEN ERROR"` | `MazeGenerator.__init__()`, `reset_maze()` | Logical constraint violations (e.g. entry equals exit). |
+| `"KEY ERROR"` | `check_params()` | Missing mandatory configuration keys. |
+
+---
+
+## Handling MazeError
+
+### Basic try/except
+
+```python
+from mazegen import MazeGenerator, MazeError
+
+try:
+    maze = MazeGenerator(
+        width=5,
+        height=5,
+        entry=(0, 0),
+        exit=(0, 0),  # same as entry — invalid
+    )
+except MazeError as e:
+    print(e)
+    # MAZEGEN ERROR: entry and exit must be different.
+```
+
+### Inspecting the errors list
+
+```python
+from mazegen import MazeError
+
+try:
+    raise MazeError("CONFIG ERROR", [
+        "WIDTH is missing",
+        "HEIGHT is missing",
+        "OUTPUT_FILE is missing",
+    ])
+except MazeError as e:
+    print(f"Category: {e.prefix}")
+    print(f"Problem count: {len(e.errors)}")
+    for msg in e.errors:
+        print(f"  - {msg}")
+```
+
+Output:
+
+```text
+Category: CONFIG ERROR
+Problem count: 3
+  - WIDTH is missing
+  - HEIGHT is missing
+  - OUTPUT_FILE is missing
+```
+
+### Handling file-loading errors
+
+```python
+from mazegen import MazeGenerator, MazeError
+
+try:
+    maze = MazeGenerator.maze_from_file("settings.txt")
+except MazeError as e:
+    # e.prefix tells you the category (FILE ERROR, KEY ERROR, etc.)
+    # e.errors lists every specific problem
+    for message in e.errors:
+        print(f"[{e.prefix}] {message}")
+```
+
+---
+
+## Raising MazeError in your own code
+
+If you extend `mazegen` or build tooling on top of it, you can raise `MazeError` directly:
+
+```python
+from mazegen import MazeError
+
+def validate_dimensions(width, height):
+    problems = []
+    if width < 2:
+        problems.append("WIDTH must be at least 2")
+    if height < 2:
+        problems.append("HEIGHT must be at least 2")
+    if problems:
+        raise MazeError("VALUE ERROR", problems)
+```
+
+<Columns cols={2}>
+  <Card title="Configuration Parser" icon="settings" href="/api/configuration-parser">
+    See which parsing functions raise MazeError and with which prefixes.
+  </Card>
+  <Card title="MazeGenerator" icon="grid-2x2" href="/api/maze-generator">
+    See constructor and reset_maze() validation constraints.
+  </Card>
+</Columns>

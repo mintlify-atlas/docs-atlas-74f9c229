@@ -1,0 +1,201 @@
+---
+title: "Configuration Parser"
+description: "Parse and validate KEY=VALUE maze configuration files."
+---
+
+The `mazegen.parsing` module reads a plain-text configuration file and converts it into the typed dictionary that `MazeGenerator` expects. It is used internally by `MazeGenerator.maze_from_file()`, but its components are documented here for transparency and advanced use.
+
+## CONFIG_SCHEMA
+
+`CONFIG_SCHEMA` is a dictionary that declares every recognised key, its expected type, and whether it is required.
+
+```python
+CONFIG_SCHEMA = {
+    'mandatory': {
+        'WIDTH': "int",
+        'HEIGHT': "int",
+        'ENTRY': "tuple",
+        'EXIT': "tuple",
+        'OUTPUT_FILE': "file",
+        'PERFECT': "bool"
+    },
+    'bonus': {
+        'SEED': "int",
+        'SPEED_ANIMATION': "float"
+    }
+}
+```
+
+### Mandatory keys
+
+| Key | Type tag | Description |
+|-----|----------|-------------|
+| `WIDTH` | `int` | Maze width in cells. |
+| `HEIGHT` | `int` | Maze height in cells. |
+| `ENTRY` | `tuple` | Entry cell as `x,y`. |
+| `EXIT` | `tuple` | Exit cell as `x,y`. |
+| `OUTPUT_FILE` | `file` | Output filename. |
+| `PERFECT` | `bool` | `true` / `false`. |
+
+### Bonus keys
+
+| Key | Type tag | Description |
+|-----|----------|-------------|
+| `SEED` | `int` | Reproducibility seed. `0` = random. |
+| `SPEED_ANIMATION` | `float` | Frame delay in seconds. |
+
+### Type conversion rules
+
+| Type tag | Python type | Accepted values |
+|----------|-------------|------------------|
+| `int` | `int` | Any integer string, e.g. `10`. |
+| `float` | `float` | Any decimal string, e.g. `0.05`. |
+| `tuple` | `tuple[int, int]` | Two comma-separated integers, e.g. `3,7`. |
+| `bool` | `bool` | `true` or `false` (case-insensitive). |
+| `file` | `str` | Any non-empty string treated as a filename. |
+
+---
+
+## Example configuration file
+
+```text maze_config.txt
+WIDTH=20
+HEIGHT=15
+ENTRY=0,0
+EXIT=19,14
+OUTPUT_FILE=output_maze.txt
+PERFECT=true
+SEED=42
+SPEED_ANIMATION=0.03
+```
+
+<Note>
+  Keys are matched case-insensitively. `width=20` and `WIDTH=20` are equivalent.
+</Note>
+
+---
+
+## Functions
+
+### `get_config_from_file(directory)`
+
+```python
+get_config_from_file(directory: str) -> dict[str, Any]
+```
+
+Entry point for file-based configuration. Reads the file at `directory`, validates that it is accessible, then delegates to `parsing_config()`.
+
+<ParamField path="directory" type="str" required>
+  Path to the configuration file.
+</ParamField>
+
+**Returns:** A dictionary with parsed and validated configuration values, ready to pass to `MazeGenerator`.
+
+**Raises:**
+
+- `FileNotFoundError` — file does not exist.
+- `PermissionError` — file exists but cannot be read.
+- `ValueError` — formatting error or invalid value (message lists all problems found).
+
+---
+
+### `parsing_config(txt)`
+
+```python
+parsing_config(txt: str) -> dict[str, Any]
+```
+
+Parses raw config text. Splits each line on `=`, converts the key to upper case, identifies its expected type from `CONFIG_SCHEMA`, and converts the value. All errors are accumulated before a `ValueError` is raised, so the caller receives every problem at once.
+
+<ParamField path="txt" type="str" required>
+  Raw text content from the configuration file.
+</ParamField>
+
+**Returns:** A dictionary with keys converted to lower case and values converted to their proper Python types.
+
+**Raises:** `ValueError` with a list of all detected errors when any line cannot be parsed or any value cannot be converted.
+
+<Tip>
+  Because all errors are accumulated, you always see the complete list of problems in a single run instead of fixing one error at a time.
+</Tip>
+
+---
+
+### `check_params(config)`
+
+```python
+check_params(config: dict[str, Any]) -> bool
+```
+
+Validates logical constraints of the parsed configuration: checks that all mandatory keys are present.
+
+<ParamField path="config" type="dict[str, Any]" required>
+  A dictionary previously produced by `parsing_config()`.
+</ParamField>
+
+**Returns:** `True` if the configuration is logically valid.
+
+**Raises:** `MazeError` with prefix `"KEY ERROR"` if any mandatory key is missing, listing every absent key.
+
+---
+
+### `check_42_pattern(width, height)`
+
+```python
+check_42_pattern(width: int, height: int) -> None
+```
+
+Checks whether the maze is large enough to embed the built-in `"42"` decorative pattern (requires at least 9 columns and 7 rows). If the maze is smaller, the user is prompted to confirm whether to continue without the pattern.
+
+<ParamField path="width" type="int" required>
+  Width of the maze in cells.
+</ParamField>
+
+<ParamField path="height" type="int" required>
+  Height of the maze in cells.
+</ParamField>
+
+**Raises:** `SystemExit` if the user declines to continue.
+
+<Warning>
+  This function reads from stdin. Calling it in a non-interactive context (CI, scripts) will block waiting for input if the maze is smaller than 9×7.
+</Warning>
+
+---
+
+## Error cases
+
+<AccordionGroup>
+  <Accordion title="File does not exist">
+    `get_config_from_file()` raises `FileNotFoundError`. The path passed in `directory` does not point to a readable file.
+  </Accordion>
+
+  <Accordion title="File lacks read permissions">
+    `get_config_from_file()` raises `PermissionError`.
+  </Accordion>
+
+  <Accordion title="Malformed line">
+    A line does not contain `=`, or has more than one `=` at the wrong position. Accumulated in `parsing_config()` and raised as `ValueError`.
+  </Accordion>
+
+  <Accordion title="Unknown key">
+    A key that appears in neither `mandatory` nor `bonus` sections of `CONFIG_SCHEMA`. Accumulated as a formatting error.
+  </Accordion>
+
+  <Accordion title="Wrong value type">
+    For example, `WIDTH=abc` when an integer is expected. Accumulated and raised together with any other errors.
+  </Accordion>
+
+  <Accordion title="Missing mandatory key">
+    `check_params()` raises `MazeError("KEY ERROR", [...])` listing all absent mandatory keys.
+  </Accordion>
+</AccordionGroup>
+
+<Columns cols={2}>
+  <Card title="MazeGenerator" icon="grid-2x2" href="/api/maze-generator">
+    Use maze_from_file() to load a configuration file directly.
+  </Card>
+  <Card title="MazeError" icon="circle-alert" href="/api/errors">
+    Understand how grouped error messages are structured.
+  </Card>
+</Columns>

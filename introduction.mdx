@@ -1,0 +1,78 @@
+---
+title: "Introduction"
+description: "A Python maze generation and solving library with DFS generation, BFS pathfinding, and interactive ASCII terminal visualization."
+---
+
+**A-Maze-ing** is a procedural maze generation and solving system developed as part of the 42 curriculum. It combines a reusable Python library (`mazegen`) with an interactive CLI application for generating, visualizing, and solving mazes in the terminal.
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Install the package and generate your first maze in minutes
+  </Card>
+  <Card title="CLI Usage" icon="terminal" href="/cli/running">
+    Run the interactive maze application from the command line
+  </Card>
+  <Card title="Guides" icon="book" href="/guides/maze-generation">
+    Deep dive into generation algorithms and configuration options
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/overview">
+    Full reference for the mazegen Python package
+  </Card>
+</CardGroup>
+
+## Key features
+
+<CardGroup cols={2}>
+  <Card title="DFS Maze Generation" icon="shuffle">
+    Perfect mazes via depth-first search with backtracking. Imperfect mode randomly removes walls for multiple valid paths.
+  </Card>
+  <Card title="BFS Pathfinding" icon="route">
+    Breadth-first search guarantees the shortest path between entry and exit points.
+  </Card>
+  <Card title="42 Pattern Stamp" icon="stamp">
+    Mazes of at least 9×7 cells automatically embed an immutable "42" pattern at the center.
+  </Card>
+  <Card title="ANSI Visualization" icon="display">
+    Animated ASCII rendering with 5 color palettes and step-by-step generation and solving animations.
+  </Card>
+  <Card title="Config File Driven" icon="file-lines">
+    Simple KEY=VALUE configuration files define maze dimensions, entry/exit points, seed, and animation speed.
+  </Card>
+  <Card title="Reusable Package" icon="package">
+    The `mazegen` library is distributed as a `.whl` wheel, installable independently via pip.
+  </Card>
+</CardGroup>
+
+## Project structure
+
+The repository contains two main components:
+
+| Component | Description |
+|-----------|-------------|
+| `a_maze_ing.py` | CLI entry point — parses a config file and runs the interactive loop |
+| `mazegen/` | Reusable Python package with generation, solving, rendering, and I/O modules |
+| `mazegen-1.0.0-py3-none-any.whl` | Pre-built wheel for pip installation |
+| `config.txt` | Example configuration file |
+
+## The mazegen package
+
+The `mazegen` package exposes the following public API:
+
+```python
+from mazegen import (
+    MazeGenerator,     # Core class: generation + solving
+    MazeError,         # Custom exception with multi-error support
+    generate_output,   # Write hex maze + path to a .txt file
+    render_maze,       # Render maze as ANSI string
+    render_generation, # Animated DFS generation in terminal
+    render_solve,      # Animated BFS solving in terminal
+    render_path,       # Draw final solution path
+    Color,             # ANSI color enum
+)
+```
+
+## Requirements
+
+- Python 3.10 or higher
+- No third-party runtime dependencies — uses only the Python standard library
+- `mypy` and `flake8` for development linting (optional)

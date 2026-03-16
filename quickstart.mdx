@@ -1,80 +1,163 @@
 ---
 title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+description: "Install A-Maze-ing and generate your first maze in under 5 minutes."
 ---
 
-## Get started in three steps
+## Prerequisites
 
-Get your documentation site running locally and make your first customization.
+- Python 3.10 or higher
+- `pip` and `make` available on your system
 
-### Step 1: Set up your local environment
+<Steps>
+  <Step title="Clone the repository">
+    ```bash
+    git clone https://github.com/your-org/a-maze-ing.git
+    cd a-maze-ing
+    ```
+  </Step>
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+  <Step title="Install dependencies">
+    Run `make install` to create a virtual environment, install all Python dependencies, and install the `mazegen` wheel.
 
-### Step 2: Deploy your changes
+    ```bash
+    make install
+    ```
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+    This installs the `mazegen-1.0.0-py3-none-any.whl` package and all required tooling. There are no third-party runtime dependencies.
+  </Step>
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+  <Step title="Configure your maze">
+    A-Maze-ing reads maze parameters from a plain-text config file. An example `config.txt` is included in the repository:
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+    ```text config.txt
+    WIDTH=20
+    HEIGHT=15
+    ENTRY=0,0
+    EXIT=19,14
+    OUTPUT_FILE=output_maze.txt
+    PERFECT=True
+    #SEED=42           # Optional: fix the random seed for reproducibility
+    #SPEED_ANIMATION=0.01  # Optional: enable animated generation
+    ```
 
-### Step 3: Go live
+    | Key | Description |
+    |-----|-------------|
+    | `WIDTH` | Number of columns in the maze |
+    | `HEIGHT` | Number of rows in the maze |
+    | `ENTRY` | Entry cell as `col,row` (zero-indexed) |
+    | `EXIT` | Exit cell as `col,row` (zero-indexed) |
+    | `OUTPUT_FILE` | File path where the maze is written after generation |
+    | `PERFECT` | `True` for a perfect maze (no loops); `False` allows loops |
+    | `SEED` | Optional integer seed for reproducible mazes |
+    | `SPEED_ANIMATION` | Optional float (seconds per frame) to animate generation |
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+    <Tip>
+      Set `SEED` to a fixed integer to regenerate the exact same maze layout every time. Useful for testing or sharing a specific maze.
+    </Tip>
+  </Step>
+
+  <Step title="Run the maze generator">
+    <CodeGroup>
+
+    ```bash make
+    make run
+    ```
+
+    ```bash python
+    python3 a_maze_ing.py config.txt
+    ```
+
+    </CodeGroup>
+
+    The maze renders directly in your terminal. After generation, you are presented with an interactive menu.
+  </Step>
+</Steps>
+
+## Interactive commands
+
+Once a maze is displayed, you can interact with it using the numbered menu:
+
+| Key | Action |
+|-----|--------|
+| `1` | Re-generate a new maze with the same configuration |
+| `2` | Toggle the solution path from entry to exit |
+| `3` | Cycle through available maze colors |
+| `4` | Quit the program |
+
+<Note>
+  If `SPEED_ANIMATION` is set in your config, the generation and solving steps play back as an animation before the interactive menu appears.
+</Note>
+
+## Using mazegen as a library
+
+You can install the `mazegen` package into any Python 3.10+ project directly from the wheel file and use it programmatically.
+
+<Steps>
+  <Step title="Install the wheel">
+    ```bash
+    pip install mazegen-1.0.0-py3-none-any.whl
+    ```
+  </Step>
+
+  <Step title="Generate and solve a maze in Python">
+    ```python
+    import mazegen
+
+    # Create a 20x15 maze with entry at top-left and exit at bottom-right
+    maze = mazegen.MazeGenerator(
+        width=20,
+        height=15,
+        entry=(0, 0),
+        exit=(19, 14),
+        seed=42,           # Optional: reproducible output
+        perfect=True,      # No loops
+        output_file="output_maze.txt",
+        speed_animation=0, # 0 disables animation
+    )
+
+    # Generate the maze structure
+    maze.generate()
+
+    # Calculate the solution path from entry to exit
+    maze.calculate_path()
+
+    # Render the maze to the terminal
+    pallet = mazegen.Color.get_pallete()
+    mazegen.render_maze(maze, terminal=True, show_path=True, color=pallet[0])
+
+    # Write the maze to the configured output file
+    mazegen.generate_output(maze)
+    ```
+
+    You can also load parameters directly from a config file:
+
+    ```python
+    import mazegen
+
+    try:
+        maze = mazegen.MazeGenerator.maze_from_file("config.txt")
+    except mazegen.MazeError as e:
+        print(f"Configuration error: {e}")
+        raise SystemExit(1)
+
+    maze.generate()
+    maze.calculate_path()
+    mazegen.generate_output(maze)
+    ```
+
+    <Warning>
+      Always wrap `maze_from_file` in a `try/except mazegen.MazeError` block. The exception is raised for missing keys, invalid values, or an unreadable config file.
+    </Warning>
+  </Step>
+</Steps>
 
 ## Next steps
 
-Now that you have your docs running, explore these key features:
-
-<CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
-</CardGroup>
-
-<Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
-</Note>
+<Columns cols={2}>
+  <Card title="Configuration reference" icon="sliders" href="/cli/configuration">
+    Full list of config file keys, types, and defaults.
+  </Card>
+  <Card title="API reference" icon="code" href="/api/overview">
+    Complete reference for the `mazegen` package classes and functions.
+  </Card>
+</Columns>
