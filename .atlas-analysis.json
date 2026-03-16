@@ -1,0 +1,64 @@
+{
+  "projectType": "sdk-library",
+  "projectName": "A-Maze-ing",
+  "projectDescription": "A Python maze generation and solving library featuring DFS-based procedural generation, BFS shortest-path solving, a 42-pattern constraint stamp, and interactive ANSI ASCII terminal visualization.",
+  "theme": "palm",
+  "primaryColor": "#a2a2a2",
+  "lightColor": "#414141",
+  "darkColor": "#e5e5e5",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": ["introduction", "quickstart"]
+          },
+          {
+            "group": "CLI Usage",
+            "pages": ["cli/running", "cli/configuration", "cli/interactive-commands"]
+          },
+          {
+            "group": "Guides",
+            "pages": ["guides/maze-generation", "guides/solving", "guides/visualization", "guides/output-format"]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "mazegen Package",
+            "pages": ["api/overview", "api/maze-generator", "api/configuration-parser", "api/output", "api/visualization", "api/errors"]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Procedural DFS maze generation with perfect and imperfect modes",
+    "BFS shortest-path solving algorithm",
+    "Mandatory '42' pattern constraint stamp for grids >= 9x7",
+    "Interactive ANSI-colored ASCII terminal visualization with animation",
+    "Configuration-file-driven setup (KEY=VALUE format)",
+    "Reusable mazegen Python package (distributable as .whl)",
+    "Hexadecimal output file serialization of maze grid and solution path",
+    "Multiple color palette cycling and real-time keyboard interaction"
+  ],
+  "publicApiSurface": [
+    "MazeGenerator(width, height, entry, exit, seed, perfect, speed_animation)",
+    "MazeGenerator.maze_from_file(filename)",
+    "MazeGenerator.generate()",
+    "MazeGenerator.calculate_path()",
+    "MazeGenerator.get_grid()",
+    "MazeGenerator.get_path()",
+    "generate_output(maze)",
+    "render_maze(maze, show_path, wall_color, terminal)",
+    "render_generation(maze, wall_color)",
+    "render_solve(maze, color)",
+    "render_path(maze, animated_path, color)",
+    "Color.get_pallete()",
+    "MazeError(prefix, errors)"
+  ]
+}
